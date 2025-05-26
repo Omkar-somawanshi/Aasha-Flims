@@ -14,7 +14,7 @@ const registerUser = async (req, res) => {
             });
         }
 
-        // Create users table if not exists
+        // Create users table if not exists with suspended time fields
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -24,6 +24,8 @@ const registerUser = async (req, res) => {
                 mobile VARCHAR(20) NOT NULL UNIQUE,
                 plan ENUM('free', 'premium') DEFAULT 'free',
                 suspended BOOLEAN DEFAULT FALSE,
+                suspended_from DATETIME NULL,
+                suspended_to DATETIME NULL,
                 blocked BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -94,19 +96,33 @@ const loginUser = async (req, res) => {
 
         const user = users[0];
 
-        // Check account status
-        if (user.suspended) {
-            return res.status(403).json({
-                success: false,
-                message: "Account suspended. Please contact support."
-            });
-        }
-
+        // Check account status - now with suspension period check
         if (user.blocked) {
             return res.status(403).json({
                 success: false,
                 message: "Account blocked. Please contact support."
             });
+        }
+
+        if (user.suspended) {
+            const now = new Date();
+            // Check if suspension period has ended
+            if (user.suspended_to && new Date(user.suspended_to) < now) {
+                // Auto-unsuspend if suspension period has passed
+                await pool.query(
+                    "UPDATE users SET suspended = FALSE, suspended_from = NULL, suspended_to = NULL WHERE id = ?",
+                    [user.id]
+                );
+            } else {
+                let message = "Account suspended. Please contact support.";
+                if (user.suspended_to) {
+                    message += ` Suspension ends on: ${user.suspended_to.toLocaleString()}`;
+                }
+                return res.status(403).json({
+                    success: false,
+                    message
+                });
+            }
         }
 
         // Verify password
@@ -134,7 +150,9 @@ const loginUser = async (req, res) => {
             name: user.name,
             email: user.email,
             mobile: user.mobile,
-            plan: user.plan
+            plan: user.plan,
+            suspended: user.suspended,
+            suspended_to: user.suspended_to
         };
 
         return res.status(200).json({
@@ -178,6 +196,8 @@ const getUserProfile = async (req, res) => {
             email: user[0].email,
             mobile: user[0].mobile,
             plan: user[0].plan,
+            suspended: user[0].suspended,
+            suspended_to: user[0].suspended_to,
             created_at: user[0].created_at
         };
 
@@ -232,7 +252,7 @@ const createTicket = async (req, res) => {
         return res.status(201).json({
             success: true,
             message: "Ticket created successfully",
-            ticketId: result.insertId, // Return the ID of the newly created ticket
+            ticketId: result.insertId,
         });
     } catch (error) {
         console.error("Error creating ticket:", error.message);
@@ -243,8 +263,6 @@ const createTicket = async (req, res) => {
         });
     }
 };
-
-
 
 module.exports = {
     registerUser,
