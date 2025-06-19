@@ -1,21 +1,21 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const pool = require('../config/database');
+const pool = require("../config/database");
 
 const registerUser = async (req, res) => {
-    try {
-        const { name, email, password, mobile } = req.body;
+  try {
+    const { name, email, password, mobile } = req.body;
 
-        // Input validation
-        if (!name || !email || !password || !mobile) {
-            return res.status(400).json({ 
-                success: false,
-                message: "All fields are required" 
-            });
-        }
+    // Input validation
+    if (!name || !email || !password || !mobile) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
 
-        // Create users table if not exists with suspended time fields
-        await pool.query(`
+    // Create users table if not exists with suspended time fields
+    await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -32,204 +32,202 @@ const registerUser = async (req, res) => {
             )
         `);
 
-        // Check if user exists
-        const [existingUser] = await pool.query(
-            "SELECT id FROM users WHERE email = ? OR mobile = ?", 
-            [email, mobile]
-        );
+    // Check if user exists
+    const [existingUser] = await pool.query(
+      "SELECT id FROM users WHERE email = ? OR mobile = ?",
+      [email, mobile]
+    );
 
-        if (existingUser.length > 0) {
-            return res.status(409).json({ 
-                success: false,
-                message: "User with this email or mobile already exists" 
-            });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 12);
-
-        // Insert new user
-        const [result] = await pool.query(
-            "INSERT INTO users (name, email, password, mobile) VALUES (?, ?, ?, ?)",
-            [name, email, hashedPassword, mobile]
-        );
-
-        return res.status(201).json({ 
-            success: true,
-            message: "User registered successfully",
-            userId: result.insertId 
-        });
-
-    } catch (error) {
-        console.error("Registration error:", error);
-        return res.status(500).json({ 
-            success: false,
-            message: "Internal server error",
-            error: error.message 
-        });
+    if (existingUser.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "User with this email or mobile already exists",
+      });
     }
-}
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Insert new user
+    const [result] = await pool.query(
+      "INSERT INTO users (name, email, password, mobile) VALUES (?, ?, ?, ?)",
+      [name, email, hashedPassword, mobile]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      userId: result.insertId,
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
 
 const loginUser = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        // Input validation
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "Email and password are required"
-            });
-        }
-
-        // Check if user exists
-        const [users] = await pool.query(
-            "SELECT * FROM users WHERE email = ?", 
-            [email]
-        );
-
-        if (users.length === 0) {
-            return res.status(401).json({ 
-                success: false,
-                message: "Invalid credentials"
-            });
-        }
-
-        const user = users[0];
-
-        // Check account status - now with suspension period check
-        if (user.blocked) {
-            return res.status(403).json({
-                success: false,
-                message: "Account blocked. Please contact support."
-            });
-        }
-
-        if (user.suspended) {
-            const now = new Date();
-            // Check if suspension period has ended
-            if (user.suspended_to && new Date(user.suspended_to) < now) {
-                // Auto-unsuspend if suspension period has passed
-                await pool.query(
-                    "UPDATE users SET suspended = FALSE, suspended_from = NULL, suspended_to = NULL WHERE id = ?",
-                    [user.id]
-                );
-            } else {
-                let message = "Account suspended. Please contact support.";
-                if (user.suspended_to) {
-                    message += ` Suspension ends on: ${user.suspended_to.toLocaleString()}`;
-                }
-                return res.status(403).json({
-                    success: false,
-                    message
-                });
-            }
-        }
-
-        // Verify password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ 
-                success: false,
-                message: "Invalid credentials" 
-            });
-        }
-
-        // Create JWT token
-        const token = jwt.sign(
-            { 
-                userId: user.id,
-                email: user.email
-            }, 
-            process.env.JWT_SECRET,
-            { expiresIn: '5h' }
-        );
-
-        // User data without sensitive information
-        const userData = {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            mobile: user.mobile,
-            plan: user.plan,
-            suspended: user.suspended,
-            suspended_to: user.suspended_to
-        };
-
-        return res.status(200).json({
-            success: true,
-            message: "Login successful",
-            token,
-            user: userData
-        });
-
-    } catch (error) {
-        console.error("Login error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-            error: error.message
-        });
+    // Input validation
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
     }
-}
+
+    // Check if user exists
+    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
+
+    if (users.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    const user = users[0];
+
+    // Check account status - now with suspension period check
+    if (user.blocked) {
+      return res.status(403).json({
+        success: false,
+        message: "Account blocked. Please contact support.",
+      });
+    }
+
+    if (user.suspended) {
+      const now = new Date();
+      // Check if suspension period has ended
+      if (user.suspended_to && new Date(user.suspended_to) < now) {
+        // Auto-unsuspend if suspension period has passed
+        await pool.query(
+          "UPDATE users SET suspended = FALSE, suspended_from = NULL, suspended_to = NULL WHERE id = ?",
+          [user.id]
+        );
+      } else {
+        let message = "Account suspended. Please contact support.";
+        if (user.suspended_to) {
+          message += ` Suspension ends on: ${user.suspended_to.toLocaleString()}`;
+        }
+        return res.status(403).json({
+          success: false,
+          message,
+        });
+      }
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "5h" }
+    );
+
+    // User data without sensitive information
+    const userData = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      mobile: user.mobile,
+      plan: user.plan,
+      suspended: user.suspended,
+      suspended_to: user.suspended_to,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: userData,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
 
 const getUserProfile = async (req, res) => {
-    try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({ 
-                success: false,
-                message: "User not authorized" 
-            });
-        }
-
-        const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [req.user.id]);
-        if (user.length === 0) {
-            return res.status(404).json({ 
-                success: false,
-                message: "User not found" 
-            });
-        }
-
-        // Return only non-sensitive data
-        const userProfile = {
-            id: user[0].id,
-            name: user[0].name,
-            email: user[0].email,
-            mobile: user[0].mobile,
-            plan: user[0].plan,
-            suspended: user[0].suspended,
-            suspended_to: user[0].suspended_to,
-            created_at: user[0].created_at
-        };
-
-        return res.status(200).json({ 
-            success: true,
-            user: userProfile 
-        });
-
-    } catch (error) {
-        console.error("Profile error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-            error: error.message
-        });
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authorized",
+      });
     }
-}
+
+    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [
+      req.user.id,
+    ]);
+    if (user.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Return only non-sensitive data
+    const userProfile = {
+      id: user[0].id,
+      name: user[0].name,
+      email: user[0].email,
+      mobile: user[0].mobile,
+      plan: user[0].plan,
+      suspended: user[0].suspended,
+      suspended_to: user[0].suspended_to,
+      created_at: user[0].created_at,
+    };
+
+    return res.status(200).json({
+      success: true,
+      user: userProfile,
+    });
+  } catch (error) {
+    console.error("Profile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
 
 const createTicket = async (req, res) => {
-    try {
-        const { email, mobile_no, title, description } = req.body;
+  try {
+    const { email, mobile_no, title, description } = req.body;
 
-        // Input validation
-        if (!email || !mobile_no || !title || !description) {
-            return res.status(400).json({
-                success: false,
-                message: "Email, mobile number, title, and description are required",
-            });
-        }
+    // Input validation
+    if (!email || !mobile_no || !title || !description) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, mobile number, title, and description are required",
+      });
+    }
 
-        // Create `tickets` table if it does not exist
-        const createTableQuery = `
+    // Create `tickets` table if it does not exist
+    const createTableQuery = `
             CREATE TABLE IF NOT EXISTS tickets (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 email VARCHAR(255) NOT NULL,
@@ -240,33 +238,42 @@ const createTicket = async (req, res) => {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `;
-        await pool.query(createTableQuery);
+    await pool.query(createTableQuery);
 
-        // Insert ticket into the database
-        const insertQuery = `
+    // Insert ticket into the database
+    const insertQuery = `
             INSERT INTO tickets (email, mobile_no, title, description) 
             VALUES (?, ?, ?, ?)
         `;
-        const [result] = await pool.query(insertQuery, [email, mobile_no, title, description]);
+    const [result] = await pool.query(insertQuery, [
+      email,
+      mobile_no,
+      title,
+      description,
+    ]);
 
-        return res.status(201).json({
-            success: true,
-            message: "Ticket created successfully",
-            ticketId: result.insertId,
-        });
-    } catch (error) {
-        console.error("Error creating ticket:", error.message);
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message,
-        });
-    }
+    return res.status(201).json({
+      success: true,
+      message: "Ticket created successfully",
+      ticketId: result.insertId,
+    });
+  } catch (error) {
+    console.error("Error creating ticket:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
 };
 
+
+
+
+
 module.exports = {
-    registerUser,
-    loginUser,
-    getUserProfile,
-    createTicket
+  registerUser,
+  loginUser,
+  getUserProfile,
+  createTicket,
 };

@@ -49,4 +49,21 @@ const adminLogin = async (req, res) => {
   }
 };
 
-module.exports = { adminLogin };
+const profile = async (req,res)=>{
+  try {
+    return res.status(200).json({
+      success: true,
+      message: "User profile fetched successfully",
+      data: "ok"
+    });
+  } catch (error) {
+    console.error("Error fetching user profile:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
+
+module.exports = { adminLogin ,profile};

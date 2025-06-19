@@ -2,16 +2,19 @@ const express = require("express");
 const router = express.Router();
 
 // Controllers
-const { adminLogin } = require("../controllers/admin/authController");
+const { adminLogin, profile } = require("../controllers/admin/authController");
 const {
   fetchTickets,
   allUsers,
-  createTermsAndConditions,
-  createPrivacyPolicy,
+  // createTermsAndConditions,
+  // createPrivacyPolicy,
   getTermsAndConditions,
   getPrivacyPolicy,
   updateTermsAndConditions,
   updatePrivacyPolicy,
+  suspendUser,
+  blockUser,
+  unsuspendUser,
 } = require("../controllers/admin/dashboardController");
 
 // Middleware
@@ -23,26 +26,23 @@ const upload = require("../middleware/imgUpload");
 router.post("/login", adminLogin);
 
 // Terms and Conditions
-router.post(
-  "/createTermsAndConditions",
-  authenticate,
-  createTermsAndConditions
-);
+//router.post("/createTermsAndConditions", authenticate, createTermsAndConditions);
 router.get("/getTermsAndConditions", authenticate, getTermsAndConditions);
-router.put(
-  "/updateTermsAndConditions",
-  authenticate,
-  updateTermsAndConditions
-);
+router.put("/updateTermsAndConditions", authenticate, updateTermsAndConditions);
 
 // Privacy Policy
-router.post("/createPrivacyPolicy", authenticate, createPrivacyPolicy);
+//router.post("/createPrivacyPolicy", authenticate, createPrivacyPolicy);
 router.get("/getPrivacyPolicy", authenticate, getPrivacyPolicy);
 router.put("/updatePrivacyPolicy", authenticate, updatePrivacyPolicy);
+
+//block and suspend
+router.post("/blockUser", authenticate, blockUser);
+router.post("/suspendUser", authenticate, suspendUser);
+router.post("/unsuspendUser", authenticate, unsuspendUser);
 
 // Other Admin Dashboard Routes
 router.get("/fetchTickets", authenticate, fetchTickets);
 router.get("/allUsers", authenticate, allUsers);
 
-
+router.get("/profile", authenticate, profile);
 module.exports = router;
