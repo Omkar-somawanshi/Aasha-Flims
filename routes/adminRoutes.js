@@ -27,12 +27,12 @@ router.post("/login", adminLogin);
 
 // Terms and Conditions
 //router.post("/createTermsAndConditions", authenticate, createTermsAndConditions);
-router.get("/getTermsAndConditions", authenticate, getTermsAndConditions);
+router.get("/getTermsAndConditions", getTermsAndConditions);
 router.put("/updateTermsAndConditions", authenticate, updateTermsAndConditions);
 
 // Privacy Policy
 //router.post("/createPrivacyPolicy", authenticate, createPrivacyPolicy);
-router.get("/getPrivacyPolicy", authenticate, getPrivacyPolicy);
+router.get("/getPrivacyPolicy", getPrivacyPolicy);
 router.put("/updatePrivacyPolicy", authenticate, updatePrivacyPolicy);
 
 //block and suspend
