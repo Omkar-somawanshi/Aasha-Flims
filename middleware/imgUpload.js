@@ -1,35 +1,26 @@
 const multer = require("multer");
-const path = require("path");
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "public/uploads/"); // Ensure this directory exists
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    cb(null, `${uniqueSuffix}${ext}`); // Keep original extension
-  }
-});
+// Configure Multer to store files in memory
+const storage = multer.memoryStorage();
 
-// File filter
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error("Only JPEG, PNG, and GIF images are allowed"), false);
-  }
-};
-
-// Initialize Multer
 const upload = multer({
   storage,
-  fileFilter,
-  limits: { 
-    fileSize: 5 * 1024 * 1024 // 5MB
-  }
+  limits: { fileSize: 50 * 1024 * 1024 }, // Limit: 50 MB per file
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "video/mp4"];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error("Only JPEG, PNG, and MP4 files are allowed"));
+    }
+    cb(null, true);
+  },
 });
 
-module.exports = upload;
+// Middleware for handling file uploads for profile update
+const uploadMiddleware = upload.fields([
+  { name: "profile_photo", maxCount: 1 },   // Profile photo
+  { name: "headshot_photo", maxCount: 1 }, // Headshot photo
+  { name: "full_body_photo", maxCount: 1 },// Full body photo
+  { name: "intro_video", maxCount: 1 },    // Introductory video
+]);
+
+module.exports = uploadMiddleware;

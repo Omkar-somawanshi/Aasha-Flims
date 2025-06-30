@@ -388,14 +388,41 @@ const unsuspendUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+const changePlan = async (req, res) => {
+  const { userId, newPlan } = req.body;
+
+  // Validate input
+  if (!userId || !newPlan) {
+    return res.status(400).json({ success: false, message: 'Invalid input' });
+  }
+
+  try {
+    // Execute the SQL query to update the user's plan
+    const [result] = await pool.query(
+      'UPDATE users SET plan = ? WHERE id = ?',
+      [newPlan, userId]
+    );
+
+    // Check if the user exists
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Respond with success
+    res.json({ success: true, message: 'Plan updated successfully' });
+  } catch (error) {
+    console.error('Error updating plan:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 
 //----------------------------------------------------------------------------------------------------------
 
 module.exports = {
   fetchTickets,
   allUsers,
-  // createTermsAndConditions,
-  // createPrivacyPolicy,
+
   getTermsAndConditions,
   getPrivacyPolicy,
   updateTermsAndConditions,
@@ -403,4 +430,5 @@ module.exports = {
   suspendUser,
   blockUser,
   unsuspendUser,
+  changePlan,
 };

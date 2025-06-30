@@ -6,8 +6,7 @@ const { adminLogin, profile } = require("../controllers/admin/authController");
 const {
   fetchTickets,
   allUsers,
-  // createTermsAndConditions,
-  // createPrivacyPolicy,
+
   getTermsAndConditions,
   getPrivacyPolicy,
   updateTermsAndConditions,
@@ -15,6 +14,7 @@ const {
   suspendUser,
   blockUser,
   unsuspendUser,
+  changePlan,
 } = require("../controllers/admin/dashboardController");
 
 // Middleware
@@ -45,4 +45,5 @@ router.get("/fetchTickets", authenticate, fetchTickets);
 router.get("/allUsers", authenticate, allUsers);
 
 router.get("/profile", authenticate, profile);
+router.post('/change-plan', authenticate, changePlan);
 module.exports = router;
