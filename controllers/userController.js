@@ -118,8 +118,6 @@ const loginUser = async (req, res) => {
 
     const user = users[0];
 
-   
-
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
@@ -253,9 +251,7 @@ const createTicket = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-console.log("Request body:", req.body);
 
-    // Destructure form data
     const {
       gender,
       weight,
@@ -273,31 +269,12 @@ console.log("Request body:", req.body);
       dialects_accents,
       special_appearances_or_training,
       skills,
+      profile_photo,
+      headshot_photo,
+      full_body_photo,
+      intro_video,
     } = req.body;
 
-    // File uploads (from Multer)
-    const profilePhotoFile = req.files?.profile_photo?.[0];
-    const headshotPhotoFile = req.files?.headshot_photo?.[0];
-    const fullBodyPhotoFile = req.files?.full_body_photo?.[0];
-    const introVideoFile = req.files?.intro_video?.[0];
-
-    // Convert uploaded files to Base64
-    const encodeBase64 = (buffer) => (buffer ? buffer.toString("base64") : null);
-
-    const profilePhoto = profilePhotoFile
-      ? encodeBase64(profilePhotoFile.buffer)
-      : null;
-    const headshotPhoto = headshotPhotoFile
-      ? encodeBase64(headshotPhotoFile.buffer)
-      : null;
-    const fullBodyPhoto = fullBodyPhotoFile
-      ? encodeBase64(fullBodyPhotoFile.buffer)
-      : null;
-    const introVideo = introVideoFile
-      ? encodeBase64(introVideoFile.buffer)
-      : null;
-
-    // SQL Query
     const sql = `
       UPDATE users 
       SET 
@@ -337,19 +314,18 @@ console.log("Request body:", req.body);
       willing_to_travel !== undefined ? willing_to_travel : null,
       skin_tone || null,
       preferred_locations || null,
-      profilePhoto,
+      profile_photo || null,
       languages_known || null,
       past_projects || null,
-      headshotPhoto,
+      headshot_photo || null,
       dialects_accents || null,
       special_appearances_or_training || null,
-      fullBodyPhoto,
+      full_body_photo || null,
       skills || null,
-      introVideo,
+      intro_video || null,
       userId,
     ];
 
-    // Execute the query
     const [result] = await pool.query(sql, values);
 
     if (result.affectedRows === 0) {

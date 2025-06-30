@@ -19,7 +19,6 @@ const {
 
 // Middleware
 const authenticate = require("../middleware/adminMiddleware");
-const upload = require("../middleware/imgUpload");
 
 // Routes
 // Admin Authentication
@@ -45,5 +44,5 @@ router.get("/fetchTickets", authenticate, fetchTickets);
 router.get("/allUsers", authenticate, allUsers);
 
 router.get("/profile", authenticate, profile);
-router.post('/change-plan', authenticate, changePlan);
+router.post("/change-plan", authenticate, changePlan);
 module.exports = router;

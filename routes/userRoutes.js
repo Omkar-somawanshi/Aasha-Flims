@@ -8,7 +8,6 @@ const {
 } = require("../controllers/userController");
 const userAuth = require("../middleware/userAuth");
 // Middleware for handling file uploads
-const uploadMiddleware = require("../middleware/imgUpload");
 
 const router = express.Router();
 
