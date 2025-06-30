@@ -2,14 +2,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/database");
 
-
 // -------------------- REGISTER USER --------------------
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, mobile } = req.body;
+    const { name, email, password, mobile, profileType } = req.body;
 
     // Input validation
-    if (!name || !email || !password || !mobile) {
+    if (!name || !email || !password || !mobile || !profileType) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
@@ -25,6 +24,7 @@ const registerUser = async (req, res) => {
         password VARCHAR(255) NOT NULL,
         mobile VARCHAR(20) NOT NULL UNIQUE,
         plan ENUM('free', 'premium') DEFAULT 'free',
+        profileType ENUM('ACTORS', 'FASHION MODELS', 'KIDS', 'INFLUENCERS', 'VOICE OVER', 'DANCERS') NOT NULL,
         suspended BOOLEAN DEFAULT FALSE,
         suspended_from DATETIME NULL,
         suspended_to DATETIME NULL,
@@ -72,8 +72,8 @@ const registerUser = async (req, res) => {
 
     // Insert new user into the database
     const [result] = await pool.query(
-      "INSERT INTO users (name, email, password, mobile) VALUES (?, ?, ?, ?)",
-      [name, email, hashedPassword, mobile]
+      "INSERT INTO users (name, email, password, mobile, profileType) VALUES (?, ?, ?, ?, ?)",
+      [name, email, hashedPassword, mobile, profileType]
     );
 
     return res.status(201).json({
@@ -105,7 +105,9 @@ const loginUser = async (req, res) => {
     }
 
     // Check if user exists
-    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    const [users] = await pool.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
 
     if (users.length === 0) {
       return res.status(401).json({
@@ -116,30 +118,7 @@ const loginUser = async (req, res) => {
 
     const user = users[0];
 
-    // Check account status
-    if (user.blocked) {
-      return res.status(403).json({
-        success: false,
-        message: "Account blocked. Please contact support.",
-      });
-    }
-
-    if (user.suspended) {
-      const now = new Date();
-      if (user.suspended_to && new Date(user.suspended_to) < now) {
-        // Auto-unsuspend
-        await pool.query(
-          "UPDATE users SET suspended = FALSE, suspended_from = NULL, suspended_to = NULL WHERE id = ?",
-          [user.id]
-        );
-      } else {
-        let message = "Account suspended. Please contact support.";
-        if (user.suspended_to) {
-          message += ` Suspension ends on: ${user.suspended_to.toLocaleString()}`;
-        }
-        return res.status(403).json({ success: false, message });
-      }
-    }
+   
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -164,8 +143,7 @@ const loginUser = async (req, res) => {
       email: user.email,
       mobile: user.mobile,
       plan: user.plan,
-      suspended: user.suspended,
-      suspended_to: user.suspended_to,
+      profileType: user.profileType,
     };
 
     return res.status(200).json({
