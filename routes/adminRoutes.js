@@ -6,7 +6,6 @@ const { adminLogin, profile } = require("../controllers/admin/authController");
 const {
   fetchTickets,
   allUsers,
-
   getTermsAndConditions,
   getPrivacyPolicy,
   updateTermsAndConditions,
