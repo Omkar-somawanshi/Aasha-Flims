@@ -161,6 +161,7 @@ const loginUser = async (req, res) => {
 };
 
 // -------------------- GET USER PROFILE --------------------
+// -------------------- GET USER PROFILE --------------------
 const getUserProfile = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
@@ -170,28 +171,28 @@ const getUserProfile = async (req, res) => {
       });
     }
 
-    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [req.user.id]);
-    if (user.length === 0) {
+    // Fetch user data
+    const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
+      req.user.id,
+    ]);
+
+    if (users.length === 0) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
 
-    const userProfile = {
-      id: user[0].id,
-      name: user[0].name,
-      email: user[0].email,
-      mobile: user[0].mobile,
-      plan: user[0].plan,
-      suspended: user[0].suspended,
-      suspended_to: user[0].suspended_to,
-      created_at: user[0].created_at,
-    };
+    
+    const user = users[0];
 
+    // Exclude the password field
+    delete user.password;
+
+    // Send user data
     return res.status(200).json({
       success: true,
-      user: userProfile,
+      user,
     });
   } catch (error) {
     console.error("Profile error:", error);
