@@ -1,4 +1,17 @@
 const pool = require("../../config/database");
+const path = require("path");
+const fs = require("fs");
+
+// Helper function to remove file if it exists
+function removeIfExists(filePath) {
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      console.error(`Error deleting file ${filePath}:`, err);
+    }
+  }
+}
 
 const fetchTickets = async (req, res) => {
   try {
@@ -97,62 +110,6 @@ const initializePrivacyTable = async () => {
     throw error;
   }
 };
-
-// Create/Update Terms and Conditions
-// const createTermsAndConditions = async (req, res) => {
-//   try {
-//     await initializeTermsTable();
-//     const { html_content } = req.body;
-
-//     // Clear existing entries and insert new one
-//     await pool.query("TRUNCATE TABLE terms_and_conditions");
-//     const [result] = await pool.query(
-//       "INSERT INTO terms_and_conditions (html_content) VALUES (?)",
-//       [html_content]
-//     );
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Terms and conditions saved successfully",
-//       contentId: result.insertId,
-//     });
-//   } catch (error) {
-//     console.error("Error saving terms and conditions:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to save terms and conditions",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// // Create/Update Privacy Policy
-// const createPrivacyPolicy = async (req, res) => {
-//   try {
-//     await initializePrivacyTable();
-//     const { html_content } = req.body;
-
-//     // Clear existing entries and insert new one
-//     await pool.query("TRUNCATE TABLE privacy_policy");
-//     const [result] = await pool.query(
-//       "INSERT INTO privacy_policy (html_content) VALUES (?)",
-//       [html_content]
-//     );
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Privacy policy saved successfully",
-//       contentId: result.insertId,
-//     });
-//   } catch (error) {
-//     console.error("Error saving privacy policy:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to save privacy policy",
-//       error: error.message,
-//     });
-//   }
-// };
 
 // Get Current Terms and Conditions
 const getTermsAndConditions = async (req, res) => {
@@ -302,6 +259,7 @@ const updatePrivacyPolicy = async (req, res) => {
     });
   }
 };
+
 const blockUser = async (req, res) => {
   const { userId, block } = req.body;
 
@@ -388,41 +346,136 @@ const unsuspendUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
 const changePlan = async (req, res) => {
   const { userId, newPlan } = req.body;
 
   // Validate input
   if (!userId || !newPlan) {
-    return res.status(400).json({ success: false, message: 'Invalid input' });
+    return res.status(400).json({ success: false, message: "Invalid input" });
   }
 
   try {
     // Execute the SQL query to update the user's plan
     const [result] = await pool.query(
-      'UPDATE users SET plan = ? WHERE id = ?',
+      "UPDATE users SET plan = ? WHERE id = ?",
       [newPlan, userId]
     );
 
     // Check if the user exists
     if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Respond with success
-    res.json({ success: true, message: 'Plan updated successfully' });
+    res.json({ success: true, message: "Plan updated successfully" });
   } catch (error) {
-    console.error('Error updating plan:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error("Error updating plan:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
+const uploadDir = path.join(process.cwd(), "uploads", "HomeVideo");
 
-//----------------------------------------------------------------------------------------------------------
+/* ------------------------------------------------------------------ */
+/*  Ensure table exists and create row #1 if missing                  */
+/* ------------------------------------------------------------------ */
+async function initHomeVideoTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS homeVideo (
+      id          INT PRIMARY KEY AUTO_INCREMENT,
+      video_path  VARCHAR(255) DEFAULT NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                   ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // make sure row id = 1 is present
+  const [rows] = await pool.query("SELECT id FROM homeVideo WHERE id = 1");
+  if (rows.length === 0) {
+    await pool.query("INSERT INTO homeVideo (id, video_path) VALUES (1, NULL)");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  PUT  /api/home-video/:id  (defaults to id = 1)                     */
+/* ------------------------------------------------------------------ */
+const updateHomeVideo = async (req, res) => {
+  let tempFilePath = req.file ? req.file.path : null;
+  // id comes from URL; if not provided we fall back to 1
+  const videoId = parseInt(req.params.id, 10) || 1;
+
+  try {
+    await initHomeVideoTable();
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No video uploaded." });
+    }
+
+    /* fetch existing row so we know what to delete */
+    const [[record] = []] = await pool.query(
+      "SELECT video_path FROM homeVideo WHERE id = ?",
+      [videoId]
+    );
+
+    if (!record) {
+      return res.status(404).json({ error: `Row id ${videoId} not found.` });
+    }
+
+    /* -----------------------------------------------------------
+       1️⃣  Delete the previous video (if any)
+           Handles both "video-123.mp4" and
+           "/abs/path/uploads/HomeVideo/video-123.mp4"
+    ----------------------------------------------------------- */
+    if (record.video_path) {
+      const oldPath = path.isAbsolute(record.video_path)
+        ? record.video_path
+        : path.join(uploadDir, record.video_path);
+
+      // Make sure we're not deleting the brand-new file by mistake
+      if (oldPath !== tempFilePath) removeIfExists(oldPath);
+    }
+
+    const newFilename = req.file.filename;
+
+    /* ---------------------- update DB with new file -------------------- */
+    await pool.query("UPDATE homeVideo SET video_path = ? WHERE id = ?", [
+      newFilename,
+      videoId,
+    ]);
+
+    /* ------------ success → prevent cleanup in finally/catch ---------- */
+    tempFilePath = null;
+
+    return res.json({
+      message: `Video for id ${videoId} updated successfully 🎉`,
+      file: newFilename,
+    });
+  } catch (err) {
+    console.error("updateHomeVideo error →", err);
+
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+        console.log("Temp file removed ➜", tempFilePath);
+      } catch (unlinkErr) {
+        console.error("Failed to delete temp file ➜", unlinkErr);
+      }
+    }
+
+    return res
+      .status(500)
+      .json({ error: "Server error. Upload rolled back, file deleted." });
+  }
+};
 
 module.exports = {
   fetchTickets,
   allUsers,
-
+  updateHomeVideo,
   getTermsAndConditions,
   getPrivacyPolicy,
   updateTermsAndConditions,

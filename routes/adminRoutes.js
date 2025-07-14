@@ -14,7 +14,9 @@ const {
   blockUser,
   unsuspendUser,
   changePlan,
+  updateHomeVideo,
 } = require("../controllers/admin/dashboardController");
+const uploadHomeVideo = require("../middleware/uploadHomeVideo");
 
 // Middleware
 const authenticate = require("../middleware/adminMiddleware");
@@ -44,4 +46,6 @@ router.get("/allUsers", authenticate, allUsers);
 
 router.get("/profile", authenticate, profile);
 router.post("/change-plan", authenticate, changePlan);
+
+router.put("/updateHomeVideo",uploadHomeVideo, updateHomeVideo);
 module.exports = router;
