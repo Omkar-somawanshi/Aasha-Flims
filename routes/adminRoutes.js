@@ -15,11 +15,14 @@ const {
   unsuspendUser,
   changePlan,
   updateHomeVideo,
+  updateBanner,
+  updateAboutUs,
 } = require("../controllers/admin/dashboardController");
 const uploadHomeVideo = require("../middleware/uploadHomeVideo");
 
 // Middleware
 const authenticate = require("../middleware/adminMiddleware");
+const { bannerUpload } = require("../middleware/bannerUpload");
 
 // Routes
 // Admin Authentication
@@ -48,4 +51,8 @@ router.get("/profile", authenticate, profile);
 router.post("/change-plan", authenticate, changePlan);
 
 router.put("/updateHomeVideo",uploadHomeVideo, updateHomeVideo);
+
+router.put("/banner/:id", bannerUpload.single("banner"), updateBanner);
+
+router.post("/about-us", updateAboutUs);
 module.exports = router;

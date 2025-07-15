@@ -1,6 +1,7 @@
 const pool = require("../../config/database");
 const path = require("path");
 const fs = require("fs");
+const { bannerDir } = require("../../middleware/bannerUpload");
 
 // Helper function to remove file if it exists
 function removeIfExists(filePath) {
@@ -472,6 +473,128 @@ const updateHomeVideo = async (req, res) => {
   }
 };
 
+async function initBannerTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS banners (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      image_path VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  const [rows] = await pool.query("SELECT id FROM banners");
+  const existingIds = rows.map((r) => r.id);
+
+  if (!existingIds.includes(1)) {
+    await pool.query("INSERT INTO banners (id, image_path) VALUES (1, NULL)");
+  }
+  if (!existingIds.includes(2)) {
+    await pool.query("INSERT INTO banners (id, image_path) VALUES (2, NULL)");
+  }
+}
+
+// ✅ Step 2: Update banner by ID
+const updateBanner = async (req, res) => {
+  let tempFilePath = req.file ? req.file.path : null;
+  const bannerId = parseInt(req.params.id, 10) || 1;
+
+  try {
+    await initBannerTable();
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No banner uploaded." });
+    }
+
+    const [[record] = []] = await pool.query(
+      "SELECT image_path FROM banners WHERE id = ?",
+      [bannerId]
+    );
+    if (!record) {
+      return res.status(404).json({ error: `Banner ${bannerId} not found.` });
+    }
+
+    // Delete old file if it exists
+    if (record.image_path) {
+      const oldPath = path.join(bannerDir, record.image_path);
+      if (oldPath !== tempFilePath) removeIfExists(oldPath);
+    }
+
+    const newFilename = req.file.filename;
+    await pool.query("UPDATE banners SET image_path = ? WHERE id = ?", [
+      newFilename,
+      bannerId,
+    ]);
+
+    tempFilePath = null;
+
+    return res.json({
+      message: `Banner ${bannerId} updated successfully 🎉`,
+      file: newFilename,
+    });
+  } catch (err) {
+    console.error("Error updating banner:", err);
+
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+
+    return res.status(500).json({ error: "Server error. Upload failed." });
+  }
+};
+
+/* ----------------------------------------------------- */
+/* 🧱 Initialize About Us table with default NULL row    */
+/* ----------------------------------------------------- */
+const initAboutUsTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS about_us (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      html_content LONGTEXT DEFAULT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Insert row with id = 1 if not exists
+  const [rows] = await pool.query("SELECT id FROM about_us WHERE id = 1");
+  if (rows.length === 0) {
+    await pool.query("INSERT INTO about_us (id, html_content) VALUES (1, NULL)");
+  }
+};
+
+/* ----------------------------------------------------- */
+/* ✏️  Save HTML content (update about_us row)           */
+/* ----------------------------------------------------- */
+const updateAboutUs = async (req, res) => {
+  const { htmlContent } = req.body;
+
+  if (!htmlContent) {
+    return res.status(400).json({
+      success: false,
+      message: "No HTML content provided",
+    });
+  }
+
+  try {
+    await initAboutUsTable();
+
+    await pool.query("UPDATE about_us SET html_content = ? WHERE id = 1", [htmlContent]);
+
+    res.status(200).json({
+      success: true,
+      message: "About Us content updated successfully ✅",
+    });
+  } catch (err) {
+    console.error("❌ Error updating About Us:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update About Us",
+      error: err.message,
+    });
+  }
+};
+
+
 module.exports = {
   fetchTickets,
   allUsers,
@@ -484,4 +607,6 @@ module.exports = {
   blockUser,
   unsuspendUser,
   changePlan,
+  updateBanner,
+  updateAboutUs,
 };
